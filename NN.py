@@ -286,7 +286,7 @@ class Addition(Layer):
             raise Exception("For an Addition layer, xShape and yShape, must be equal")
         # vector
         if parameters is None:
-            self.parameters = np.random.randn(*self.xShape)*0.01
+            self.parameters = np.random.randn(*self.xShape)*0.01*0.0
         else:
             self.parameters = parameters
         self.sigmaR  = sigmaR
@@ -370,6 +370,27 @@ class DownsampleImage(Layer):
         # I'll need an array
         self.downsampleArray0 = np.array(np.floor( np.arange(self.yShape[0])/float(yShape[0])*xShape[0]), dtype=int)
         self.downsampleArray1 = np.array(np.floor( np.arange(self.yShape[1])/float(yShape[1])*xShape[1]), dtype=int)
+
+        # I think the above is doing a bad job
+        # I'd like to step uniformly from the first to 1 past the last, then cut off one
+        self.downsampleArray0 = np.array( np.floor( np.linspace(0,self.xShape[0],self.yShape[0]+1) ) , dtype=int)
+        self.downsampleArray1 = np.array( np.floor( np.linspace(0,self.xShape[1],self.yShape[1]+1) ) , dtype=int)
+        self.downsampleArray0 = self.downsampleArray0[:-1]
+        self.downsampleArray1 = self.downsampleArray1[:-1]
+        # well I'm not sure if thi sis a good way either
+        # try cutting off the first
+        # this way keeps things more centered
+        self.downsampleArray0 = np.array( np.floor( np.linspace(-1,self.xShape[0]-1,self.yShape[0]+1) ) , dtype=int)
+        self.downsampleArray1 = np.array( np.floor( np.linspace(-1,self.xShape[1]-1,self.yShape[1]+1) ) , dtype=int)
+        self.downsampleArray0 = self.downsampleArray0[1:]
+        self.downsampleArray1 = self.downsampleArray1[1:]
+        
+
+        # actually, generally after convolution, what I want is to sample from the first to the last inclusive
+        self.downsampleArray0 = np.array(np.linspace(0,self.xShape[0]-1, self.yShape[0]), dtype=int)
+        self.downsampleArray1 = np.array(np.linspace(0,self.xShape[1]-1, self.yShape[1]), dtype=int)        
+
+
         
         # note that downsampling factor d may be 1 if dimensions are not specified well
         self.parameters = (self.d0,self.d1,self.r0,self.r1)
@@ -557,6 +578,7 @@ class ConvolutionImage(Layer):
             #    self.parameters[:,:,i] =  np.random.randn(*self.kShape[:-1])
             #    self.parameters[:,:,i] /= np.sum( np.power( self.parameters[:,:,i], 2) )*10.0
             #self.parameters = np.random.randn(*self.kShape)*0.01
+            self.parameters = np.random.randn(*self.kShape)
         else:
             if parameters.shape != self.kShape:
                 raise Exception('Input parameter with shape {} should have shape {}'.format(parameters.shape,self.kShape))
@@ -631,6 +653,8 @@ class ConvolutionImage(Layer):
         # with k from 0 to N-1
         # so lowest value is 
         # I have to zero pad it by n-1 on BOTH sides (see diagram)
+        # ALSO
+        # it seems I have to flip the kernel
         
         ey_ = np.pad(self.ey, 
                      ((self.kShape[0]-1,self.kShape[0]-1), (self.kShape[1]-1,self.kShape[1]-1),(0,0),(0,0)), 
@@ -638,7 +662,7 @@ class ConvolutionImage(Layer):
         self.ex = np.zeros(self.xShape)   
         for i in xrange(self.yShape[-2]):
             for j in xrange(self.yShape[-1]):
-                self.ex[:,:,i,j] = sps.convolve2d(ey_[:,:,i,j], self.parameters[:,:,j], mode='valid')
+                self.ex[:,:,i,j] = sps.convolve2d(ey_[:,:,i,j], self.parameters[::-1,::-1,j], mode='valid')
         # I think I could do the same without padding by just saying mode='full'
                 
     def incrementGradient(self):
@@ -664,7 +688,7 @@ class ConvolutionImage(Layer):
                 self.gradient[:,:,j] += sps.convolve2d(self.x[::-1,::-1,i,j], self.ey[:,:,i,j], mode='valid')
         
     def __repr__(self):
-        return "(ConvolutoinImage Layer {0}->{1})".format(self.xShape,self.yShape)
+        return "(ConvolutionImage Layer {0}->{1})".format(self.xShape,self.yShape)
     
 '''    
 #l = ConvolutionImage((64,64,3,2),(62,62,3,2),parameters=np.ones((3,3,2)))
@@ -724,9 +748,9 @@ def makeStandardConvolutionalNeuralNet(inputShape=(256,256,3,1),outputDim=1,nCop
     # initialize
     nn = NeuralNet()
     # start by multiply shift and squash
-    nn.addLayer(Multiplication(inputShape,inputShape,sigmaR=sigmaR))
-    nn.addLayer(Addition(inputShape,inputShape,sigmaR=sigmaR))
-    nn.addLayer(ComponentwiseFunction())
+    #nn.addLayer(Multiplication(inputShape,inputShape,sigmaR=sigmaR))
+    #nn.addLayer(Addition(inputShape,inputShape,sigmaR=sigmaR))
+    #nn.addLayer(ComponentwiseFunction())
     
     # now make copies
     shape1 = (inputShape[0],inputShape[1],inputShape[2],inputShape[3]*nCopies)
@@ -739,40 +763,59 @@ def makeStandardConvolutionalNeuralNet(inputShape=(256,256,3,1),outputDim=1,nCop
     # old = new*d + r
     d0 = inputShape[0]/float(pot)
     d1 = inputShape[1]/float(pot)
-    n0 = np.ceil(d0)
-    n1 = np.ceil(d1)
+    # let's make the kernel twice this big
+    n0 = np.ceil(d0)*2
+    n1 = np.ceil(d1)*2
     shape1 = (shape0[0]-n0+1,shape0[1]-n1+1,shape0[2],shape0[3])
     nn.addLayer(ConvolutionImage(shape0,shape1,sigmaR=sigmaR))
+    '''
     for i in range(nCopies-1):
         nn[-1].parameters[:,:,i] -= np.mean(nn[-1].parameters[:,:,i])
         nn[-1].parameters[:,:,i] /= np.sum(np.power(nn[-1].parameters[:,:,i],2))
+    '''
     shape0=shape1
     shape1=(pot,pot,shape0[2],shape0[3])
     nn.addLayer(DownsampleImage(shape0,shape1))
     shape0=shape1
     #nn.addLayer(Addition(shape0,shape1,sigmaR=sigmaR))
     #nn.addLayer(ComponentwiseFunction())
-    nn.addLayer(Multiplication(shape0,shape1,sigmaR=sigmaR))
+    #nn.addLayer(Multiplication(shape0,shape1,sigmaR=sigmaR))
     nn.addLayer(Addition(shape0,shape1,sigmaR=sigmaR))
     nn.addLayer(ComponentwiseFunction())
      
     # now we continue this, downsampling
-    while shape1[0]>1:
+    while shape1[0]>=4:
+        # the last time will be four by four, then I'll go to 1x1
         shape0 = shape1
-        shape1 = (shape0[0]-1,shape0[1]-1,shape0[2],shape0[3]) # a 2x2 kernel
-        nn.addLayer(ConvolutionImage(shape0,shape1,sigmaR=sigmaR))        
-        shape2 = (shape0[0]/2,shape0[1]/2,shape0[2],shape0[3])
-        nn.addLayer(DownsampleImage(shape1,shape2))
+        #shape1 = (shape0[0]-1,shape0[1]-1,shape0[2],shape0[3]) # a 2x2 kernel
+        # no, let's do a 4x4 kernel
+        shape1 = (shape0[0]-3,shape0[1]-3,shape0[2],shape0[3]) # a 2x2 kernel
+        nn.addLayer(ConvolutionImage(shape0,shape1,sigmaR=sigmaR))
+        if shape1[0] < 4: # it should be 1
+            shape2 = shape1
+        else:
+            shape2 = (shape0[0]/2,shape0[1]/2,shape0[2],shape0[3])
+            nn.addLayer(DownsampleImage(shape1,shape2))
+
+            # after downsampling I'd like to copy again by a factor of 2
+            # then I'm downsampling overall by 2, not by 4
+            shape3 = shape2[:-1] + (shape2[-1]*2,)
+            nn.addLayer(CopyImage(shape2,shape3))
+            shape2 = shape3
+        
         shape0 = shape2
         shape1 = shape2
         #nn.addLayer(Addition(shape0,shape1,sigmaR=sigmaR))
         #nn.addLayer(ComponentwiseFunction())
-        nn.addLayer(Multiplication(shape0,shape1,sigmaR=sigmaR))
+        #nn.addLayer(Multiplication(shape0,shape1,sigmaR=sigmaR))
         nn.addLayer(Addition(shape0,shape1,sigmaR=sigmaR))
         nn.addLayer(ComponentwiseFunction())
     
     # now I'm almost done
     shape0 = shape1
+    nn.addLayer(Matrix(shape0,shape0,sigmaR=sigmaR))
+    nn.addLayer(Addition(shape0,sigmaR=sigmaR))
+    nn.addLayer(ComponentwiseFunction())
     shape1 = (outputDim,1)
     nn.addLayer(Matrix(shape0,shape1,sigmaR=sigmaR))
     nn.addLayer(Addition(shape1,sigmaR=sigmaR))

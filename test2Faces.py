@@ -7,11 +7,14 @@ Created on Thu May 26 14:11:50 2016
 
 # load some faces
 import NN
+reload(NN) # just in case I changed it
 import numpy as np
 import glob
 import matplotlib.pyplot as plt
-files = glob.glob('/home/dtward/Documents/MUCT/jpg/rigid/*.jpg')
-#files = files[:50]
+#files = glob.glob('/home/dtward/Documents/MUCT/jpg/rigid/*.jpg')
+files = glob.glob('/cis/home/dtward/Documents/illustrationsWithFaces/registered/*.jpg')
+files = glob.glob('/cis/home/dtward/Documents/illustrationsWithFaces/registered/*qa-*.jpg')
+#files = files[:10]
 nSubjects = len(files)
 plt.close('all')
 hFig = plt.figure()
@@ -28,7 +31,7 @@ for i,f in enumerate(files):
         
     hFig.clf()
     hAx = hFig.add_subplot(111)
-    hAx.imshow(I)
+    hAx.imshow(I,interpolation='none')
     #raise Exception
     plt.pause(0.01)
     I.shape=I.shape+(1,)
@@ -42,7 +45,7 @@ for i,f in enumerate(files):
         Z[1,0,i] = 1.0
 
     
-nCopies = 3
+nCopies = 4
 nn = NN.makeStandardConvolutionalNeuralNet(inputShape=I.shape,outputDim=2,nCopies=nCopies,sigmaR=100.0)
 nn.setTrainingData(X,Z)
 layersToDraw = [l for l in nn if type(l) == type(NN.ComponentwiseFunction())]
@@ -51,37 +54,40 @@ hFig.clf()
 nIter = 10000
 nPerDraw = 1
 nRepeats = nIter/nPerDraw
+epsilon = 0.0001
+L = 1.0e10
 for repeat in range(nRepeats):    
     print('repeat {} of {}'.format(repeat,nRepeats))
-    nn.train(nPerDraw,0.001)
+    LOld = float(L)
+    nn.train(nPerDraw,epsilon)
+    L = float(nn.L)
+    if LOld < L:
+        #epsilon *= 0.9
+        #print 'reducing epsilon to {}'.format(epsilon)
+        pass
+    else:
+        #epsilon *= 1.01
+        #print 'increasing epsilon to {}'.format(epsilon)
+        pass
+        
     randPerson = np.random.randint(nSubjects)
     nn(X[:,:,:,:,randPerson])
     hFig.clf()
     layersToDraw = [l for l in nn if type(l) == type(NN.ComponentwiseFunction())]
-    nToShow = 5
-    for i in range(nToShow):              
-        hAx = hFig.add_subplot(nCopies,nToShow,i+1)
-        Ishow = layersToDraw[i].y[:,:,:,0]
-        Ishow = (Ishow - np.min(Ishow))/(np.max(Ishow)-np.min(Ishow))
-        hIm = hAx.imshow(Ishow,interpolation='none')
-        #plt.colorbar(hIm)
-        try:
-            hAx = hFig.add_subplot(nCopies,nToShow,i+nToShow+1)
-            Ishow = layersToDraw[i].y[:,:,:,1]
-            Ishow = (Ishow - np.min(Ishow))/(np.max(Ishow)-np.min(Ishow))
-            hIm = hAx.imshow(Ishow,interpolation='none')
-            #plt.colorbar(hIm)
-        except:
-            pass
-        try:
-            hAx = hFig.add_subplot(nCopies,nToShow,i+nToShow*2+1)
-            Ishow = layersToDraw[i].y[:,:,:,2]
-            Ishow = (Ishow - np.min(Ishow))/(np.max(Ishow)-np.min(Ishow))
-            hIm = hAx.imshow(Ishow,interpolation='none')
-            #plt.colorbar(hIm)
-        except:
-            pass
-    plt.pause(0.1)
+    nToShow = 6
+    for i in range(nToShow):
+        skip = 2**i
+        for j in range(nCopies):
+            try:
+                hAx = hFig.add_subplot(nCopies,nToShow,i + j*nToShow + 1)
+                Ishow = layersToDraw[i].y[:,:,:,j*skip]
+                Ishow = (Ishow - np.min(Ishow))/(np.max(Ishow)-np.min(Ishow))
+                hIm = hAx.imshow(Ishow,interpolation='none')
+                #plt.colorbar(hIm)
+
+            except:
+                pass
+    plt.pause(0.01)
         
         
     
