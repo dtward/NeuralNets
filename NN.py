@@ -387,8 +387,8 @@ class DownsampleImage(Layer):
         
 
         # actually, generally after convolution, what I want is to sample from the first to the last inclusive
-        self.downsampleArray0 = np.array(np.linspace(0,self.xShape[0]-1, self.yShape[0]), dtype=int)
-        self.downsampleArray1 = np.array(np.linspace(0,self.xShape[1]-1, self.yShape[1]), dtype=int)        
+        self.downsampleArray0 = np.array(np.round(np.linspace(0,self.xShape[0]-1, self.yShape[0])), dtype=int)
+        self.downsampleArray1 = np.array(np.round(np.linspace(0,self.xShape[1]-1, self.yShape[1])), dtype=int)        
 
 
         

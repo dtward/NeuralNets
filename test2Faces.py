@@ -12,8 +12,8 @@ import numpy as np
 import glob
 import matplotlib.pyplot as plt
 #files = glob.glob('/home/dtward/Documents/MUCT/jpg/rigid/*.jpg')
-files = glob.glob('/cis/home/dtward/Documents/illustrationsWithFaces/registered/*.jpg')
-files = glob.glob('/cis/home/dtward/Documents/illustrationsWithFaces/registered/*qa-*.jpg')
+files = glob.glob('/cis/home/dtward/Documents/illustrationsWithFaces/registered/i*.jpg')
+#files = glob.glob('/cis/home/dtward/Documents/illustrationsWithFaces/registered/*qa-*.jpg')
 #files = files[:10]
 nSubjects = len(files)
 plt.close('all')
@@ -46,15 +46,20 @@ for i,f in enumerate(files):
 
     
 nCopies = 4
-nn = NN.makeStandardConvolutionalNeuralNet(inputShape=I.shape,outputDim=2,nCopies=nCopies,sigmaR=100.0)
+nn = NN.makeStandardConvolutionalNeuralNet(inputShape=I.shape,outputDim=2,nCopies=nCopies,sigmaR=10.0)
 nn.setTrainingData(X,Z)
 layersToDraw = [l for l in nn if type(l) == type(NN.ComponentwiseFunction())]
 nPlots = len(layersToDraw)
 hFig.clf()
+
+hFig2 = plt.figure()
+
+
 nIter = 10000
 nPerDraw = 1
 nRepeats = nIter/nPerDraw
 epsilon = 0.0001
+epsilon = 0.00001
 L = 1.0e10
 for repeat in range(nRepeats):    
     print('repeat {} of {}'.format(repeat,nRepeats))
@@ -87,7 +92,64 @@ for repeat in range(nRepeats):
 
             except:
                 pass
+
     plt.pause(0.01)
+
+    
+    # now I want to take this person and make them like their opposite label
+    if nn.E < len(files)*0.25 and nn.E < 1.0 and not repeat%10:
+        my_input = np.array(X[:,:,:,:,randPerson])
+        for i in range(100):
+            reg = 1000.0
+            
+            hFig2.clf()
+            hAx = hFig2.add_subplot(2,2,1)
+            Ishow = X[:,:,:,0,randPerson]
+            Ishow = (Ishow - np.min(Ishow))/(np.max(Ishow)-np.min(Ishow))
+            hAx.imshow(Ishow,interpolation='none')
+            target = 1.0 - Z[:,:,randPerson]
+            
+            
+            # feed forward
+            out = nn(my_input)
+            print(out)
+            # feed back
+            e = out - target
+            nn.backpropogate(e)
+            # get gradient
+            grad = nn[0].ex + (my_input - np.array(X[:,:,:,:,randPerson]))/reg**2
+            Ishow = grad[:,:,:,0]
+            Ishow = (Ishow - np.min(Ishow))/(np.max(Ishow)-np.min(Ishow))
+        
+            hAx = hFig2.add_subplot(2,2,2)
+            hIm = hAx.imshow(Ishow,interpolation='none')
+            plt.colorbar(hIm)
+
+            
+            step = 0.01
+
+            my_input = my_input - step*grad
+            Ishow = my_input[:,:,:,0]
+            Ishow = (Ishow - np.min(Ishow))/(np.max(Ishow)-np.min(Ishow))
+            hAx = hFig2.add_subplot(2,2,3)
+            hIm = hAx.imshow(Ishow,interpolation='none')
+
+
+            hAx = hFig2.add_subplot(2,2,4)
+            Ishow = my_input[:,:,:,0] - X[:,:,:,0,randPerson]
+            Ishow = (Ishow - np.min(Ishow))/(np.max(Ishow)-np.min(Ishow))
+            hIm = hAx.imshow(Ishow,interpolation='none')
+            plt.colorbar(hIm)
+
+
+            E = np.sum(e**2)/2.0 + np.sum((my_input - np.array(X[:,:,:,:,randPerson]))**2)/2.0/reg**2
+            
+            print(E)
+
+            plt.pause(0.01)
+        
+        
+
         
         
     
