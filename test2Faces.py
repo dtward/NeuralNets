@@ -11,7 +11,7 @@ import numpy as np
 import glob
 import matplotlib.pyplot as plt
 files = glob.glob('/home/dtward/Documents/MUCT/jpg/rigid/*.jpg')
-#files = files[:50]
+files = files[:50]
 nSubjects = len(files)
 plt.close('all')
 hFig = plt.figure()
@@ -20,7 +20,7 @@ for i,f in enumerate(files):
     #I = I[225:525,125:425,:]
     I = I[250:500,150:400,:]
     I = I[::2,::2,:]
-    #I = I[::2,::2,:]
+    I = I[::2,::2,:]
     #I = I[::2,::2,:]
     if i == 0:
         X = np.zeros(I.shape+(1,len(files),))
